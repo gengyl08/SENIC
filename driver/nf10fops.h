@@ -45,7 +45,6 @@
 #define NF10_IOCTL_CMD_READ_STAT (SIOCDEVPRIVATE+0)
 #define NF10_IOCTL_CMD_WRITE_REG (SIOCDEVPRIVATE+1)
 #define NF10_IOCTL_CMD_READ_REG (SIOCDEVPRIVATE+2)
-#define NF10_IOCTL_CMD_ADD_DSC (SIOCDEVPRIVATE+3)
 
 int nf10fops_open (struct inode *n, struct file *f);
 long nf10fops_ioctl (struct file *f, unsigned int cmd, unsigned long arg);

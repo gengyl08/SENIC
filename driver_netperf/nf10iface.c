@@ -78,8 +78,8 @@ static netdev_tx_t nf10i_tx(struct sk_buff *skb, struct net_device *dev){
     // transmit packet
     if(nf10priv_xmit(card, skb, port)){
         //printk(KERN_ERR "nf10: dropping packet at port %d", port);
-        //dev_kfree_skb_any(skb);
-        return NETDEV_TX_BUSY;
+        dev_kfree_skb_any(skb);
+        return NETDEV_TX_OK;
     }
 
     // update stats

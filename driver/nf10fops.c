@@ -49,7 +49,6 @@
 #include <asm/tsc.h>
 #include <linux/interrupt.h>
 #include <asm/irq.h>
-#include "nicpic.h"
 
 static dev_t devno;
 static struct class *dev_class;
@@ -76,17 +75,8 @@ long nf10fops_ioctl (struct file *f, unsigned int cmd, unsigned long arg){
     struct nf10_card *card = (struct nf10_card *)f->private_data;
     uint64_t addr, val;
     unsigned long flags;
-    int i;
 
     switch(cmd){
-    case NF10_IOCTL_CMD_ADD_DSC:
-        for(i=0; i<card->class_num; i++)
-        {
-            //printk(KERN_INFO "class: %d, head: %x\n", i, card->dsc_buffs[i]->head);
-            nicpic_add_dsc(card, (uint64_t)i);
-        }
-        break;
-
     case NF10_IOCTL_CMD_READ_STAT:
         if(copy_from_user(&addr, (uint64_t*)arg, 8)) printk(KERN_ERR "nf10: ioctl copy_from_user fail\n");
         if(addr >= 4096/8) return -EINVAL;

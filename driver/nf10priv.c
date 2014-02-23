@@ -91,7 +91,6 @@ int nf10priv_xmit(struct nf10_card *card, struct sk_buff *skb, int port){
     uint64_t dsc_l0, dsc_l1;
     uint64_t dma_addr;
 
-    printk(KERN_EMERG "xmit\n");
     if(len > 1514)
         printk(KERN_ERR "nf10: ERROR too big packet. TX size: %d\n", len);
 
@@ -193,7 +192,7 @@ void work_handler(struct work_struct *w){
     int int_enabled = 1;
     int i;
 
-    //printk(KERN_INFO "interrupt!\n");
+    printk(KERN_INFO "interrupt!\n");
     spin_lock_irqsave(&work_lock, flags);
 
     while(tcnt){
@@ -223,14 +222,8 @@ void work_handler(struct work_struct *w){
             
             // invalidate host tx completion buffer
             *(((uint32_t*)card->host_tx_doorbell_dne_ptr) + index * 16) = 0xffffffff;
-            *(((uint32_t*)card->host_tx_doorbell_dne_ptr) + index * 16 + 1) = 0xffffffff;
-            mb();
-            *(((uint64_t*)card->cfg_addr)+41) = card->host_tx_doorbell_dne.rd_ptr;
-            mb();
-            //printk(KERN_EMERG "doorbell dne interrupt!\n");
-            //printk(KERN_EMERG "%x\n", tx_doorbell_int);
-
-            atomic64_dec(&card->mem_tx_doorbell.cnt);
+            printk(KERN_INFO "doorbell dne interrupt!\n");
+            printk(KERN_INFO "%x\n", tx_doorbell_int);
             
             if(((tx_doorbell_int>>16) & 0x3f) == 6 && ((tx_doorbell_int>>8) & 0x1) == 1)
             {
@@ -262,14 +255,9 @@ void work_handler(struct work_struct *w){
             */
             // invalidate host tx completion buffer
             *(((uint32_t*)card->host_tx_dne_ptr) + index * 16) = 0xffffffff;
-            *(((uint32_t*)card->host_tx_dne_ptr) + index * 16 + 1) = 0xffffffff;
-            mb();
-            *(((uint64_t*)card->cfg_addr)+40) = card->host_tx_dne.rd_ptr;
-            mb();
-            //printk(KERN_EMERG "tx dne interrupt!\n");
-            //printk(KERN_EMERG "%d\n", (int)((tx_int >> 16) & 0xffff));
-            //printk(KERN_EMERG "%x\n", (tx_int >> 32));
-            atomic64_set(&card->dsc_buffs[((tx_int >> 16) & 0xffff)]->head, (tx_int >> 32));
+            printk(KERN_INFO "tx dne interrupt!\n");
+            printk(KERN_INFO "%d\n", (int)((tx_int >> 16) & 0xffff));
+            printk(KERN_INFO "%x\n", (tx_int >> 32));
             /*
             // restart queue if needed
             if( ((atomic64_read(&card->mem_tx_dsc.cnt) + 8*1) <= card->mem_tx_dsc.cl_size) &&

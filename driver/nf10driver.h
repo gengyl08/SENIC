@@ -67,11 +67,10 @@ struct dsc_buff{
     uint64_t physical_addr;
     uint64_t mask;
     int class_index;
-    atomic64_t head;
+    uint64_t head;
     uint64_t tail;
     struct sk_buff *skb;
     uint64_t pkt_physical_addr;
-    uint64_t pkt_len;
 };
 
 struct my_work_t{

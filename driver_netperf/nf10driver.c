@@ -44,9 +44,6 @@
 #include <linux/init.h>
 #include <linux/stat.h>
 #include <linux/pci.h>
-#include <linux/fs.h>
-#include <asm/uaccess.h>
-#include <linux/time.h>
 #include "nf10driver.h"
 #include "nf10fops.h"
 #include "nf10iface.h"
@@ -57,9 +54,6 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Mario Flajslik");
 MODULE_DESCRIPTION("nf10 nic driver");
-
-static int major; 
-char *msg;
 
 static struct pci_device_id pci_id[] = {
     {PCI_DEVICE(PCI_VENDOR_ID_NF10, PCI_DEVICE_ID_NF10)},
@@ -209,7 +203,7 @@ static int __devinit nf10_probe(struct pci_dev *pdev, const struct pci_device_id
     *(((uint64_t*)card->cfg_addr)+19) = card->rx_dne_mask;
     *(((uint64_t*)card->cfg_addr)+37) = card->host_tx_doorbell_dne_dma;
     *(((uint64_t*)card->cfg_addr)+38) = card->tx_doorbell_dne_mask;
-    printk(KERN_EMERG "2\n");
+
     // init mem buffers
     card->mem_tx_dsc.wr_ptr = 0;
     card->mem_tx_dsc.rd_ptr = 0;
@@ -260,8 +254,6 @@ static int __devinit nf10_probe(struct pci_dev *pdev, const struct pci_device_id
 
     for(i = 0; i < card->host_tx_doorbell_dne.cl_size; i++)
         *(((uint32_t*)card->host_tx_doorbell_dne_ptr) + i * 16) = 0xffffffff;
-
-    printk(KERN_EMERG "3\n");
 
     // initialize work queue
     if(!(card->wq = create_workqueue("int_hndlr"))){
@@ -403,12 +395,28 @@ static int __devinit nf10_probe(struct pci_dev *pdev, const struct pci_device_id
     *(((uint64_t*)card->tx_doorbell) + 8 * 2 + 0) = card->tx_bk_dma_addr[3];
     *(((uint64_t*)card->tx_doorbell) + 8 * 2 + 1) = (port_decoded << 96) + (uint64_t)pkt_len;
     mb();*/
-        card->debug = 0;
-        for(i=0;i<500;i++){
-            printk(KERN_EMERG "add class %d\n", i);
-            nicpic_add_class(card, 0xffffULL, 12800, 0xbb80000);
-        }
-        //printk(KERN_INFO "reset: %d\n", *(((uint64_t*)card->cfg_addr)+30));
+
+        nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 0, 1500);
+        nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 1, 1500);
+        //nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 2, 1500);
+        //nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 3, 1500);
+        //nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 4, 1500);
+        //nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 5, 1500);
+        //nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 6, 1500);
+        //nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 7, 1500);
+        //nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 8, 1500);
+        //nicpic_add_class(card, 0xffffULL, 1, 0xffff);
+        //nicpic_start_class(card, 9, 1500);
+        printk(KERN_INFO "reset: %d\n", *(((uint64_t*)card->cfg_addr)+30));
         printk(KERN_INFO "nf10: device ready\n");
         return ret;
     }
@@ -464,10 +472,10 @@ static void __devexit nf10_remove(struct pci_dev *pdev){
     //nicpic_delete_class(card);
     //nicpic_delete_class(card);
     //msleep(1000);
-    kfree(msg);
+
     for(j=0; j<card->class_num; j++)
     {
-        for(i=atomic64_read(&card->dsc_buffs[j]->head); i<card->dsc_buffs[j]->tail; i++){
+        for(i=card->dsc_buffs[j]->head; i<card->dsc_buffs[j]->tail; i++){
         pci_unmap_single(card->pdev, card->dsc_buffs[j]->pkt_physical_addr[i],
                          card->dsc_buffs[j]->skb[i]->len, PCI_DMA_TODEVICE);
         dev_kfree_skb_any(card->dsc_buffs[j]->skb[i]);
@@ -536,48 +544,17 @@ static struct pci_driver pci_driver = {
     .err_handler = &pcie_err_handlers
 };
 
-static ssize_t device_read(struct file *filp, char __user *buffer, size_t length, loff_t *offset)
-{
-  	return simple_read_from_buffer(buffer, length, offset, msg, 8192);
-}
-
-
-static ssize_t device_write(struct file *filp, const char __user *buff, size_t len, loff_t *off)
-{
-	return 0;
-}
-
-static struct file_operations fops = {
-	.read = device_read, 
-	.write = device_write,
-};
-
 static int __init nf10_init(void)
 {
 	printk(KERN_INFO "nf10: module loaded\n");
-
-        major = register_chrdev(0, "my_device", &fops);
-	if (major < 0) {
-     		printk ("Registering the character device failed with %d\n", major);
-	     	return major;
-	}
-	printk("cdev example: assigned major: %d\n", major);
-	printk(KERN_EMERG "create node with mknod /dev/cdev_example c %d 0\n", major);
-
-        msg = (char *)kmalloc(8192, GFP_KERNEL);
-
-        memset(msg, 'X', 10);
-
 	return pci_register_driver(&pci_driver);
 }
 
 static void __exit nf10_exit(void)
 {
     pci_unregister_driver(&pci_driver);
-	unregister_chrdev(major, "my_device");
 	printk(KERN_INFO "nf10: module unloaded\n");
 }
-
 
 module_init(nf10_init);
 module_exit(nf10_exit);

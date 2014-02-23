@@ -286,7 +286,7 @@ module nf10_10g_interface
        .clk156(clk156)
     );
 
-    my_converter_64_2_256
+    my_converter
     #(.C_M_AXIS_DATA_WIDTH(256),
       .C_S_AXIS_DATA_WIDTH(64),
       .C_DEFAULT_SRC_PORT(C_DEFAULT_SRC_PORT),

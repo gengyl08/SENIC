@@ -70,7 +70,6 @@
 #include <linux/if_ether.h>
 #include <net/ip.h>
 #include <net/tcp.h>
-#include <linux/time.h>
 
 #define SK_BUFF_ALLOC_SIZE  1533
 
@@ -82,10 +81,6 @@ static DEFINE_SPINLOCK(rx_dsc_lock);
 
 DECLARE_WORK(wq, work_handler);
 
-extern char *msg;
-static int enqueue = 0;
-static int feedback = 0;
-
 int nf10priv_xmit(struct nf10_card *card, struct sk_buff *skb, int port){
     uint8_t* data = skb->data;
     uint32_t len = skb->len;
@@ -96,41 +91,22 @@ int nf10priv_xmit(struct nf10_card *card, struct sk_buff *skb, int port){
     uint64_t dma_addr;
     uint64_t class_index = skb->mark;
     uint64_t port_short;
-    struct timeval t;
 
     //decide which class does this packet belong to
-    if(*(uint16_t *)(skb->data) <= 500)
-        class_index = *(uint16_t*)(skb->data) - 1;
-    else
-        class_index = 0;
-    //if(*(char*)(skb->data+16) == 'Y')
-    //    class_index = 1;
+    class_index = 0;
+
     //printk(KERN_EMERG "xmit\n");
-    //printk(KERN_EMERG "class_index: %d", class_index);
-    if(card->debug){
-        printk(KERN_EMERG "class_index: %d", class_index);
-        printk(KERN_EMERG "dsc buff head: %d, dsc buff tail: %d", atomic64_read(&card->dsc_buffs[class_index]->head), card->dsc_buffs[class_index]->tail);
-    }
     if(len > 1514)
         printk(KERN_ERR "nf10: ERROR too big packet. TX size: %d\n", len);
 
     // packet buffer management
     spin_lock_irqsave(&tx_lock, flags);
 
-    if(!(atomic64_read(&card->dsc_buffs[class_index]->head) == 0 && card->dsc_buffs[class_index]->tail == ((card->dsc_buffs[class_index]->mask)>>6))
-       && !(atomic64_read(&card->dsc_buffs[class_index]->head) != 0 && card->dsc_buffs[class_index]->tail == atomic64_read(&card->dsc_buffs[class_index]->head) - 1)){
-        //if(*(char*)(skb->data+16) == 'Y' && enqueue < 256){
-        //    do_gettimeofday(&t);
-        //    //printk(KERN_EMERG "enqueue: %d, %d\n", sizeof(t.tv_sec), sizeof(t.tv_usec));
-        //    memcpy(msg+32*enqueue, &t.tv_sec, 8);
-        //    memcpy(msg+32*enqueue+8, &t.tv_usec, 8);
-        //    enqueue++;
-       // }
-        if(class_index == 0 && net_ratelimit())
-        printk(KERN_EMERG "dsc buff head: %d, dsc buff tail: %d", atomic64_read(&card->dsc_buffs[class_index]->head), card->dsc_buffs[class_index]->tail);
-
+    if(!(card->dsc_buffs[class_index]->head == 0 && card->dsc_buffs[class_index]->tail == ((card->dsc_buffs[class_index]->mask)>>6))
+       && !(card->dsc_buffs[class_index]->head != 0 && card->dsc_buffs[class_index]->tail == card->dsc_buffs[class_index]->head - 1)){
+        
         dsc_index = card->dsc_buffs[class_index]->tail;
-        card->dsc_buffs[class_index]->tail = ((card->dsc_buffs[class_index]->tail+1) & ((card->dsc_buffs[class_index]->mask)>>6));
+        card->dsc_buffs[class_index]->tail = ((card->dsc_buffs[class_index]->tail+1) & card->dsc_buffs[class_index]->mask);
         dma_addr = pci_map_single(card->pdev, data, len, PCI_DMA_TODEVICE);
         
         if(pci_dma_mapping_error(card->pdev, dma_addr)){
@@ -145,6 +121,7 @@ int nf10priv_xmit(struct nf10_card *card, struct sk_buff *skb, int port){
         return -1;
     }
     
+    spin_unlock_irqrestore(&tx_lock, flags);
     
     // figure out ports
     if(port == 0){
@@ -163,9 +140,6 @@ int nf10priv_xmit(struct nf10_card *card, struct sk_buff *skb, int port){
         port_decoded = 0x4080;
         port_short = 0x8ULL;
     }
-    else{
-        port_short = 0x1ULL;
-    }
 
     // prepare TX descriptor
     dsc_l0 = ((uint64_t)len << 48) + ((uint64_t)port_decoded << 32) + 0xffffffff;
@@ -179,9 +153,9 @@ int nf10priv_xmit(struct nf10_card *card, struct sk_buff *skb, int port){
     *(((uint64_t*)card->dsc_buffs[class_index]->ptr) + 8 * dsc_index + 0) = dsc_l0;
     *(((uint64_t*)card->dsc_buffs[class_index]->ptr) + 8 * dsc_index + 1) = dsc_l1;
     mb();
+
     doorbell_add_dsc(card, class_index, dma_addr, port_short,
                      len, card->dsc_buffs[class_index]->tail);
-    spin_unlock_irqrestore(&tx_lock, flags);
 
     return 0;
 }
@@ -210,8 +184,6 @@ void work_handler(struct work_struct *w){
     int int_enabled = 1;
     int i;
     uint64_t class_index;
-    uint64_t start, end;
-    struct timeval t;
 
     //printk(KERN_INFO "interrupt!\n");
     spin_lock_irqsave(&work_lock, flags);
@@ -250,8 +222,6 @@ void work_handler(struct work_struct *w){
             //printk(KERN_EMERG "doorbell dne interrupt!\n");
             //printk(KERN_EMERG "%x\n", tx_doorbell_int);
             
-            atomic64_dec(&card->mem_tx_doorbell.cnt);
-            /*
             if(((tx_doorbell_int>>16) & 0x3f) == 6 && ((tx_doorbell_int>>8) & 0x1) == 1)
             {
                 card->class_num--;
@@ -267,7 +237,6 @@ void work_handler(struct work_struct *w){
                                     card->dsc_buffs[card->class_num]->physical_addr_ori);
                 kfree(card->dsc_buffs[card->class_num]);
             }
-            */
         }
 
         if( (tx_int & 0xffff) == 1 ){
@@ -290,29 +259,17 @@ void work_handler(struct work_struct *w){
             *(((uint32_t*)card->host_tx_dne_ptr) + index * 16 + 1) = 0xffffffff;
             mb();
             *(((uint64_t*)card->cfg_addr)+40) = card->host_tx_dne.rd_ptr;
-            start = *(((uint64_t*)card->cfg_addr)+50);
-            end = *(((uint64_t*)card->cfg_addr)+51);
             mb();
-            //do_gettimeofday(&t);
-            //printk(KERN_EMERG "%d %d", start, end);
-            if(enqueue<512)
-            {
-                memcpy(msg+16*enqueue, &start, 8);
-                memcpy(msg+16*enqueue+8, &end, 8);
-                enqueue++;
-            }
             //printk(KERN_EMERG "tx dne interrupt!\n");
             //printk(KERN_EMERG "%d\n", (int)((tx_int >> 16) & 0xffff));
             //printk(KERN_EMERG "%x\n", (tx_int >> 32));
             class_index = ((tx_int >> 16) & 0xffff);
-            i = atomic64_read(&card->dsc_buffs[class_index]->head);
-            while(i != (tx_int>>32)){
-                pci_unmap_single(card->pdev, card->dsc_buffs[class_index]->pkt_physical_addr[i],
-                                 card->dsc_buffs[class_index]->skb[i]->len, PCI_DMA_TODEVICE);
-                dev_kfree_skb_any(card->dsc_buffs[class_index]->skb[i]);
-                i = ((i+1) & ((card->dsc_buffs[class_index]->mask)>>6));
+            for(i=card->dsc_buffs[class_index]->head; i<(tx_int >> 32); i++){
+                   pci_unmap_single(card->pdev, card->dsc_buffs[class_index]->pkt_physical_addr[i],
+                                    card->dsc_buffs[class_index]->skb[i]->len, PCI_DMA_TODEVICE);
+                   dev_kfree_skb_any(card->dsc_buffs[class_index]->skb[i]);
             }
-            atomic64_set(&card->dsc_buffs[((tx_int >> 16) & 0xffff)]->head, (tx_int >> 32));
+            card->dsc_buffs[((tx_int >> 16) & 0xffff)]->head = (tx_int >> 32);
             /*
             // restart queue if needed
             if( ((atomic64_read(&card->mem_tx_dsc.cnt) + 8*1) <= card->mem_tx_dsc.cl_size) &&
@@ -366,13 +323,6 @@ void work_handler(struct work_struct *w){
             //port = 0;
 
             //printk(KERN_ERR "rec %d\n", len);
-            //if(*((char *)(skb->data+16)) == (char)1 && feedback<256){
-            //    do_gettimeofday(&t);
-                //printk(KERN_EMERG "feedback: %d %d\n", t.tv_sec, t.tv_usec);
-            //    memcpy(msg+32*feedback+16, &t.tv_sec, 8);
-            //    memcpy(msg+32*feedback+24, &t.tv_usec, 8);
-            //    feedback++;
-            //}
 
             if(len > 1514 || len < 60 || port < 0 || port > 3){
                 printk(KERN_ERR"nf10: invalid pakcet\n");

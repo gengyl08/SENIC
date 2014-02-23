@@ -1,106 +1,13 @@
 #include <linux/pci.h>
-#include <linux/spinlock.h>
 #include "nicpic.h"
 #define SK_BUFF_ALLOC_SIZE  1533
 
-static DEFINE_SPINLOCK(doorbell_lock);
-
-static void board_restart(struct nf10_card *card)
-{
-    int i;
-    int j;
-
-    *(((uint64_t*)card->cfg_addr)+30) = 1;
-    card->mem_tx_dsc.wr_ptr = 0;
-    card->mem_tx_dsc.rd_ptr = 0;
-    atomic64_set(&card->mem_tx_dsc.cnt, 0);
-    card->mem_tx_dsc.mask = card->tx_dsc_mask;
-    card->mem_tx_dsc.cl_size = (card->tx_dsc_mask+1)/64;
-    card->mem_tx_pkt.wr_ptr = 0;
-    card->mem_tx_pkt.rd_ptr = 0;
-    atomic64_set(&card->mem_tx_pkt.cnt, 0);
-    card->mem_tx_pkt.mask = card->tx_pkt_mask;
-    card->mem_tx_pkt.cl_size = (card->tx_pkt_mask+1)/64;
-    card->mem_rx_dsc.wr_ptr = 0;
-    card->mem_rx_dsc.rd_ptr = 0;
-    atomic64_set(&card->mem_rx_dsc.cnt, 0);
-    card->mem_rx_dsc.mask = card->rx_dsc_mask;
-    card->mem_rx_dsc.cl_size = (card->rx_dsc_mask+1)/64;
-    card->mem_rx_pkt.wr_ptr = 0;
-    card->mem_rx_pkt.rd_ptr = 0;
-    atomic64_set(&card->mem_rx_pkt.cnt, 0);
-    card->mem_rx_pkt.mask = card->rx_pkt_mask;
-    card->mem_rx_pkt.cl_size = (card->rx_pkt_mask+1)/64;
-    card->host_tx_dne.wr_ptr = 0;
-    card->host_tx_dne.rd_ptr = 0;
-    atomic64_set(&card->host_tx_dne.cnt, 0);
-    card->host_tx_dne.mask = card->tx_dne_mask;
-    card->host_tx_dne.cl_size = (card->tx_dne_mask+1)/64;
-    card->host_rx_dne.wr_ptr = 0;
-    card->host_rx_dne.rd_ptr = 0;
-    atomic64_set(&card->host_rx_dne.cnt, 0);
-    card->host_rx_dne.mask = card->rx_dne_mask;
-    card->host_rx_dne.cl_size = (card->rx_dne_mask+1)/64;
-    card->mem_tx_doorbell.wr_ptr = 0;
-    card->mem_tx_doorbell.rd_ptr = 0;
-    atomic64_set(&card->mem_tx_doorbell.cnt, 0);
-    card->mem_tx_doorbell.mask = card->tx_doorbell_mask;
-    card->mem_tx_doorbell.cl_size = (card->tx_doorbell_mask+1)/64;
-    card->host_tx_doorbell_dne.wr_ptr = 0;
-    card->host_tx_doorbell_dne.rd_ptr = 0;
-    atomic64_set(&card->host_tx_doorbell_dne.cnt, 0);
-    card->host_tx_doorbell_dne.mask = card->tx_doorbell_dne_mask;
-    card->host_tx_doorbell_dne.cl_size = (card->tx_doorbell_dne_mask+1)/64;
-    
-    for(i = 0; i < card->host_tx_dne.cl_size; i++)
-        *(((uint64_t*)card->host_tx_dne_ptr) + i * 8) = 0xffffffffffffffffULL;
-
-    for(i = 0; i < card->host_rx_dne.cl_size; i++)
-        *(((uint64_t*)card->host_rx_dne_ptr) + i * 8 + 7) = 0xffffffffffffffffULL;
-
-    for(i = 0; i < card->host_tx_doorbell_dne.cl_size; i++)
-        *(((uint32_t*)card->host_tx_doorbell_dne_ptr) + i * 16) = 0xffffffff;
-
-    for(i=0; i<card->class_num; i++)
-    {
-        doorbell_add_class(card, card->dsc_buffs[i]->physical_addr, card->dsc_buffs[i]->mask);
-        doorbell_set_rate(card, i, card->dsc_buffs[i]->rate);
-        doorbell_set_tokens_max(card, i, card->dsc_buffs[i]->tokens_max);
-        j = atomic64_read(&card->dsc_buffs[i]->head);
-        while(j != card->dsc_buffs[i]->tail)
-        {
-            pci_unmap_single(card->pdev, card->dsc_buffs[i]->pkt_physical_addr[j],
-                             card->dsc_buffs[i]->skb[j]->len, PCI_DMA_TODEVICE);
-            dev_kfree_skb_any(card->dsc_buffs[i]->skb[j]);
-            j = ((j+1) & ((card->dsc_buffs[i]->mask)>>6));
-        }
-        atomic64_set(&card->dsc_buffs[i]->head, 0);
-        card->dsc_buffs[i]->tail = 0;
-    }
-
-}
 void doorbell_add_class(struct nf10_card *card, uint64_t dsc_buffer_host_addr, uint64_t dsc_buffer_mask)
 {
-    unsigned long flags;
     uint64_t dsc_l0, dsc_l1;
     uint64_t inst = 1;
     uint64_t class_index = 0;
     uint64_t doorbell_addr = 0, doorbell_index = 0;
-    uint64_t space;
-    uint64_t doorbell_head;
-
-    spin_lock_irqsave(&doorbell_lock, flags);
-
-    do{
-        mb();
-        doorbell_head = *(((uint64_t*)card->cfg_addr)+52);
-        mb();
-        if((doorbell_head>>6)<=((card->mem_tx_doorbell.wr_ptr)>>6))
-            space = ((card->mem_tx_doorbell.mask+1)>>6)+((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        else
-            space = ((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        if(net_ratelimit()) printk(KERN_EMERG "head: %d, tail: %d, space: %d", doorbell_head, card->mem_tx_doorbell.wr_ptr,  space);
-    } while(space<8);
 
     doorbell_addr = card->mem_tx_doorbell.wr_ptr;
     card->mem_tx_doorbell.wr_ptr = (doorbell_addr + 64) & card->mem_tx_doorbell.mask;
@@ -113,31 +20,13 @@ void doorbell_add_class(struct nf10_card *card, uint64_t dsc_buffer_host_addr, u
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 0) = dsc_l0;
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 1) = dsc_l1;
     mb();
-
-    spin_unlock_irqrestore(&doorbell_lock, flags);
 }
 
 void doorbell_set_rate(struct nf10_card *card, uint64_t class_index, uint64_t rate)
 {
-    unsigned long flags;
     uint64_t dsc_l0, dsc_l1;
     uint64_t inst = 2;
     uint64_t doorbell_addr = 0, doorbell_index = 0;
-    uint64_t space;
-    uint64_t doorbell_head;
-
-    spin_lock_irqsave(&doorbell_lock, flags);
-
-    do{
-        mb();
-        doorbell_head = *(((uint64_t*)card->cfg_addr)+52);
-        mb();
-        if((doorbell_head>>6)<=((card->mem_tx_doorbell.wr_ptr)>>6))
-            space = ((card->mem_tx_doorbell.mask+1)>>6)+((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        else
-            space = ((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        if(net_ratelimit()) printk(KERN_EMERG "head: %d, tail: %d, space: %d", doorbell_head, card->mem_tx_doorbell.wr_ptr,  space);
-    } while(space<8);
 
     doorbell_addr = card->mem_tx_doorbell.wr_ptr;
     card->mem_tx_doorbell.wr_ptr = (doorbell_addr + 64) & card->mem_tx_doorbell.mask;
@@ -150,31 +39,13 @@ void doorbell_set_rate(struct nf10_card *card, uint64_t class_index, uint64_t ra
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 0) = dsc_l0;
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 1) = dsc_l1;
     mb();
-
-    spin_unlock_irqrestore(&doorbell_lock, flags);
 }
 
 void doorbell_set_tokens_max(struct nf10_card *card, uint64_t class_index, uint64_t tokens_max)
 {
-    unsigned long flags;
     uint64_t dsc_l0, dsc_l1;
     uint64_t inst = 3;
     uint64_t doorbell_addr = 0, doorbell_index = 0;
-    uint64_t space;
-    uint64_t doorbell_head;
-
-    spin_lock_irqsave(&doorbell_lock, flags);
-
-    do{
-        mb();
-        doorbell_head = *(((uint64_t*)card->cfg_addr)+52);
-        mb();
-        if((doorbell_head>>6)<=((card->mem_tx_doorbell.wr_ptr)>>6))
-            space = ((card->mem_tx_doorbell.mask+1)>>6)+((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        else
-            space = ((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        if(net_ratelimit()) printk(KERN_EMERG "head: %d, tail: %d, space: %d", doorbell_head, card->mem_tx_doorbell.wr_ptr,  space);
-    } while(space<8);
 
     doorbell_addr = card->mem_tx_doorbell.wr_ptr;
     card->mem_tx_doorbell.wr_ptr = (doorbell_addr + 64) & card->mem_tx_doorbell.mask;
@@ -187,40 +58,14 @@ void doorbell_set_tokens_max(struct nf10_card *card, uint64_t class_index, uint6
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 0) = dsc_l0;
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 1) = dsc_l1;
     mb();
-
-    spin_unlock_irqrestore(&doorbell_lock, flags);
 }
 
 void doorbell_add_dsc(struct nf10_card *card, uint64_t class_index, uint64_t pkt_host_addr,
                       uint64_t pkt_port_short, uint64_t pkt_len, uint64_t dsc_tail_index)
 {
-    unsigned long flags;
     uint64_t dsc_l0, dsc_l1;
     uint64_t inst = 4;
     uint64_t doorbell_addr = 0, doorbell_index = 0;
-    uint64_t space;
-    uint64_t doorbell_head;
-    int count = 0;
-    spin_lock_irqsave(&doorbell_lock, flags);
-
-    do{
-        //if(count>20){
-        //    spin_unlock_irqrestore(&doorbell_lock, flags);
-        //    board_restart(card);
-        //    printk(KERN_EMERG "board restart!");
-        //    msleep(10000);
-        //    return;
-        //}
-        //count++;
-        mb();
-        doorbell_head = *(((uint64_t*)card->cfg_addr)+52);
-        mb();
-        if((doorbell_head>>6)<=((card->mem_tx_doorbell.wr_ptr)>>6))
-            space = ((card->mem_tx_doorbell.mask+1)>>6)+((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        else
-            space = ((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        if(net_ratelimit()) printk(KERN_EMERG "head: %d, tail: %d, space: %d", doorbell_head, card->mem_tx_doorbell.wr_ptr,  space);
-    } while(space<8);
 
     doorbell_addr = card->mem_tx_doorbell.wr_ptr;
     card->mem_tx_doorbell.wr_ptr = (doorbell_addr + 64) & card->mem_tx_doorbell.mask;
@@ -233,31 +78,13 @@ void doorbell_add_dsc(struct nf10_card *card, uint64_t class_index, uint64_t pkt
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 0) = dsc_l0;
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 1) = dsc_l1;
     mb();
-
-    spin_unlock_irqrestore(&doorbell_lock, flags);
-    return;
 }
 
 void doorbell_stop_class(struct nf10_card *card, uint64_t class_index)
 {
-    unsigned long flags;
     uint64_t dsc_l0, dsc_l1;
     uint64_t inst = 5;
     uint64_t doorbell_addr = 0, doorbell_index = 0;
-    uint64_t space;
-    uint64_t doorbell_head;
-
-    spin_lock_irqsave(&doorbell_lock, flags);
-
-    do{
-        mb();
-        doorbell_head = *(((uint64_t*)card->cfg_addr)+52);
-        mb();
-        if((doorbell_head>>6)<=((card->mem_tx_doorbell.wr_ptr)>>6))
-            space = ((card->mem_tx_doorbell.mask+1)>>6)+((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        else
-            space = ((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-    } while(space<8);
 
     doorbell_addr = card->mem_tx_doorbell.wr_ptr;
     card->mem_tx_doorbell.wr_ptr = (doorbell_addr + 64) & card->mem_tx_doorbell.mask;
@@ -270,31 +97,14 @@ void doorbell_stop_class(struct nf10_card *card, uint64_t class_index)
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 0) = dsc_l0;
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 1) = dsc_l1;
     mb();
-
-    spin_unlock_irqrestore(&doorbell_lock, flags);
 }
 
 void doorbell_delete_class(struct nf10_card *card)
 {
-    unsigned long flags;
     uint64_t dsc_l0, dsc_l1;
     uint64_t inst = 6;
     uint64_t class_index = 0;
     uint64_t doorbell_addr = 0, doorbell_index = 0;
-    uint64_t space;
-    uint64_t doorbell_head;
-
-    spin_lock_irqsave(&doorbell_lock, flags);
-
-    do{
-        mb();
-        doorbell_head = *(((uint64_t*)card->cfg_addr)+52);
-        mb();
-        if((doorbell_head>>6)<=((card->mem_tx_doorbell.wr_ptr)>>6))
-            space = ((card->mem_tx_doorbell.mask+1)>>6)+((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-        else
-            space = ((doorbell_head>>6))-((card->mem_tx_doorbell.wr_ptr)>>6);
-    } while(space<8);
 
     doorbell_addr = card->mem_tx_doorbell.wr_ptr;
     card->mem_tx_doorbell.wr_ptr = (doorbell_addr + 64) & card->mem_tx_doorbell.mask;
@@ -307,8 +117,6 @@ void doorbell_delete_class(struct nf10_card *card)
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 0) = dsc_l0;
     *(((uint64_t*)card->tx_doorbell) + 8 * doorbell_index + 1) = dsc_l1;
     mb();
-
-    spin_unlock_irqrestore(&doorbell_lock, flags);
 }
 
 int nicpic_add_class(struct nf10_card *card, uint64_t buff_mask, uint64_t rate, uint64_t tokens_max)
@@ -318,35 +126,21 @@ int nicpic_add_class(struct nf10_card *card, uint64_t buff_mask, uint64_t rate, 
     class_index = card->class_num;
     card->class_num++;
     card->dsc_buffs[class_index] = (struct dsc_buff*)kmalloc(sizeof(struct dsc_buff), GFP_KERNEL);
-
-    if(card->dsc_buffs[class_index] == NULL)
+    card->dsc_buffs[class_index]->class_index = class_index;
+    card->dsc_buffs[class_index]->head = 0;
+    card->dsc_buffs[class_index]->tail = 0;
+    card->dsc_buffs[class_index]->mask = buff_mask;
+    card->dsc_buffs[class_index]->ptr_ori = pci_alloc_consistent(card->pdev, buff_mask+1+64, &(card->dsc_buffs[class_index]->physical_addr_ori));
+    if(card->dsc_buffs[class_index]->ptr_ori == NULL)
     {
-        printk(KERN_EMERG "alloc error");
         card->class_num--;
         return 0;
     }
-
-    card->dsc_buffs[class_index]->class_index = class_index;
-    atomic64_set(&card->dsc_buffs[class_index]->head, 0);
-    card->dsc_buffs[class_index]->tail = 0;
-    card->dsc_buffs[class_index]->mask = buff_mask;
-    card->dsc_buffs[class_index]->rate = rate;
-    card->dsc_buffs[class_index]->tokens_max = tokens_max;
-
-    card->dsc_buffs[class_index]->ptr_ori = pci_alloc_consistent(card->pdev, buff_mask+1+64, &(card->dsc_buffs[class_index]->physical_addr_ori));
     card->dsc_buffs[class_index]->ptr = (void *)(((uint64_t)(card->dsc_buffs[class_index]->ptr_ori) & 0xffffffffffffffc0ULL) + 0x40ULL);
     card->dsc_buffs[class_index]->physical_addr = (card->dsc_buffs[class_index]->physical_addr_ori & 0xffffffffffffffc0ULL) + 0x40ULL;
     card->dsc_buffs[class_index]->skb = (struct sk_buff**)kmalloc((buff_mask+1)*sizeof(struct sk_buff*), GFP_KERNEL);
     card->dsc_buffs[class_index]->pkt_physical_addr = (uint64_t *)kmalloc((buff_mask+1)*sizeof(uint64_t), GFP_KERNEL);
 
-    if(card->dsc_buffs[class_index]->ptr_ori == NULL
-       || card->dsc_buffs[class_index]->skb == NULL
-       || card->dsc_buffs[class_index]->pkt_physical_addr == NULL)
-    {
-        printk(KERN_EMERG "allocation fail!");
-        card->class_num--;
-        return 0;
-    }
     doorbell_add_class(card, card->dsc_buffs[class_index]->physical_addr, buff_mask);
     doorbell_set_rate(card, class_index, rate);
     doorbell_set_tokens_max(card, class_index, tokens_max);
@@ -370,7 +164,7 @@ void nicpic_start_class(struct nf10_card *card, uint64_t class_index, uint64_t p
 
     skb = dev_alloc_skb(SK_BUFF_ALLOC_SIZE + 2);
     skb_reserve(skb, 2);
-    *((uint16_t *)(skb->data)) = (uint16_t)(class_index + 1);
+    //*((uint16_t *)(skb->data)) = (uint16_t)(class_index + 1);
     memset((void *)skb->data, (uint8_t)(class_index + 1), pkt_len);
     card->dsc_buffs[class_index]->skb = skb;
     dma_addr = pci_map_single(card->pdev, skb->data, SK_BUFF_ALLOC_SIZE, PCI_DMA_TODEVICE);
@@ -402,4 +196,3 @@ void nicpic_add_dsc(struct nf10_card *card, uint64_t class_index)
                      card->dsc_buffs[class_index]->pkt_len, card->dsc_buffs[class_index]->tail);
     printk(KERN_EMERG "finish adding doorbell\n");
 }*/
-

@@ -67,8 +67,8 @@ static int __devinit nf10_probe(struct pci_dev *pdev, const struct pci_device_id
     int ret = -ENODEV;
     struct nf10_card *card;
 
-    uint64_t port_decoded = 0x0102;
-    uint64_t pkt_len = 1500;
+    uint64_t port_decoded = 0x4080;
+    uint32_t pkt_len = 0x81;
     struct sk_buff *skb;
     uint64_t dma_addr;
     uint64_t dsc_l0, dsc_l1;
@@ -160,11 +160,11 @@ static int __devinit nf10_probe(struct pci_dev *pdev, const struct pci_device_id
     card->rx_dsc_mask = 0x000007ffULL;
     card->tx_pkt_mask = 0x00007fffULL;
     card->rx_pkt_mask = 0x00007fffULL;
-    card->tx_dne_mask = 0x000007ffULL;
+    card->tx_dne_mask = 0x00000fffULL;
     card->rx_dne_mask = 0x000007ffULL;
     card->tx_doorbell_mask  = 0x000007ffULL;
-    card->tx_doorbell_dne_mask = 0x000007ffULL;
-    /*
+    card->tx_doorbell_dne_mask = 0x00000fffULL;
+    
     if(card->tx_dsc_mask > card->tx_dne_mask){
         *(((uint64_t*)card->cfg_addr)+1) = card->tx_dne_mask;
         card->tx_dsc_mask = card->tx_dne_mask;
@@ -181,7 +181,7 @@ static int __devinit nf10_probe(struct pci_dev *pdev, const struct pci_device_id
     else if(card->rx_dne_mask > card->rx_dsc_mask){
         *(((uint64_t*)card->cfg_addr)+15) = card->rx_dsc_mask;
         card->rx_dne_mask = card->rx_dsc_mask;
-    }*/
+    }
 
     // allocate buffers to play with
     card->host_tx_dne_ptr = pci_alloc_consistent(pdev, card->tx_dne_mask+1, &(card->host_tx_dne_dma));
@@ -396,78 +396,10 @@ static int __devinit nf10_probe(struct pci_dev *pdev, const struct pci_device_id
     *(((uint64_t*)card->tx_doorbell) + 8 * 2 + 1) = (port_decoded << 96) + (uint64_t)pkt_len;
     mb();*/
 
-    card->dsc_buffs[0] = (struct dsc_buff*)kmalloc(sizeof(struct dsc_buff), GFP_KERNEL);
-    card->dsc_buffs[0]->class_index = 0;
-    atomic64_set(&card->dsc_buffs[0]->head, 0);
-    card->dsc_buffs[0]->tail = 0;
-    card->dsc_buffs[0]->mask = 0xffff;
-
-    card->dsc_buffs[0]->ptr_ori = pci_alloc_consistent(card->pdev, 0xffff+1+64, &(card->dsc_buffs[0]->physical_addr_ori));
-    card->dsc_buffs[0]->ptr = (void *)(((uint64_t)(card->dsc_buffs[0]->ptr_ori) & 0xffffffffffffffc0ULL) + 0x40ULL);
-    card->dsc_buffs[0]->physical_addr = (card->dsc_buffs[0]->physical_addr_ori & 0xffffffffffffffc0ULL) + 0x40ULL;
-
-    skb = dev_alloc_skb(SK_BUFF_ALLOC_SIZE + 2);
-    skb_reserve(skb, 2);
-    memset((void *)skb->data, (uint8_t)(1), pkt_len);
-    card->dsc_buffs[0]->skb = skb;
-    dma_addr = pci_map_single(card->pdev, skb->data, SK_BUFF_ALLOC_SIZE, PCI_DMA_TODEVICE);
-    card->dsc_buffs[0]->pkt_physical_addr = dma_addr;
-    card->dsc_buffs[0]->pkt_len = pkt_len;
-    dsc_l0 = (pkt_len << 48) + ((uint64_t)port_decoded << 32) + 0xffffffff;
-    dsc_l1 = dma_addr;
-
-    for(i=0; i<=((card->dsc_buffs[0]->mask)>>6); i++)
-    {
-        *(((uint64_t*)card->dsc_buffs[0]->ptr) + 8 * i + 0) = dsc_l0;
-        *(((uint64_t*)card->dsc_buffs[0]->ptr) + 8 * i + 1) = dsc_l1;
-    }
-
-    card->dsc_buffs[1] = (struct dsc_buff*)kmalloc(sizeof(struct dsc_buff), GFP_KERNEL);
-    card->dsc_buffs[1]->class_index = 1;
-    atomic64_set(&card->dsc_buffs[1]->head, 0);
-    card->dsc_buffs[1]->tail = 0;
-    card->dsc_buffs[1]->mask = 0xffff;
-
-    card->dsc_buffs[1]->ptr_ori = pci_alloc_consistent(card->pdev, 0xffff+1+64, &(card->dsc_buffs[1]->physical_addr_ori));
-    card->dsc_buffs[1]->ptr = (void *)(((uint64_t)(card->dsc_buffs[1]->ptr_ori) & 0xffffffffffffffc0ULL) + 0x40ULL);
-    card->dsc_buffs[1]->physical_addr = (card->dsc_buffs[1]->physical_addr_ori & 0xffffffffffffffc0ULL) + 0x40ULL;
-
-    skb = dev_alloc_skb(SK_BUFF_ALLOC_SIZE + 2);
-    skb_reserve(skb, 2);
-    memset((void *)skb->data, (uint8_t)(2), pkt_len);
-    card->dsc_buffs[1]->skb = skb;
-    dma_addr = pci_map_single(card->pdev, skb->data, SK_BUFF_ALLOC_SIZE, PCI_DMA_TODEVICE);
-    card->dsc_buffs[1]->pkt_physical_addr = dma_addr;
-    card->dsc_buffs[1]->pkt_len = pkt_len;
-    dsc_l0 = (pkt_len << 48) + ((uint64_t)port_decoded << 32) + 0xffffffff;
-    dsc_l1 = dma_addr;
-
-    for(i=0; i<=((card->dsc_buffs[1]->mask)>>6); i++)
-    {
-        *(((uint64_t*)card->dsc_buffs[1]->ptr) + 8 * i + 0) = dsc_l0;
-        *(((uint64_t*)card->dsc_buffs[1]->ptr) + 8 * i + 1) = dsc_l1;
-    }
-        for(i=2;i<1000;i++){
-    card->dsc_buffs[i] = (struct dsc_buff*)kmalloc(sizeof(struct dsc_buff), GFP_KERNEL);
-    card->dsc_buffs[i]->class_index = i;
-    atomic64_set(&card->dsc_buffs[i]->head, 0);
-    card->dsc_buffs[i]->tail = 0;
-    card->dsc_buffs[i]->mask = 0xfffff;
-
-    card->dsc_buffs[i]->ptr = card->dsc_buffs[1]->ptr;
-    card->dsc_buffs[i]->physical_addr = card->dsc_buffs[1]->physical_addr;
-    card->dsc_buffs[i]->skb = card->dsc_buffs[1]->skb;
-    card->dsc_buffs[i]->pkt_physical_addr = card->dsc_buffs[1]->pkt_physical_addr;
-    card->dsc_buffs[i]->pkt_len = pkt_len;
-        }
-
-        for(i=0; i<1000; i++)
-        {
-            doorbell_add_class(card, card->dsc_buffs[i]->physical_addr, 0xffff);
-            doorbell_set_rate(card, i, 6400);
-            doorbell_set_tokens_max(card, i, 0x960000);
-        }
-        card->class_num = 1000;
+        nicpic_add_class(card, 0xfffULL, 1, 0xffff);
+        nicpic_start_class(card, 0, 1500);
+        nicpic_add_class(card, 0xfffULL, 1, 0xffff);
+        nicpic_start_class(card, 1, 1500);
         printk(KERN_INFO "reset: %d\n", *(((uint64_t*)card->cfg_addr)+30));
         printk(KERN_INFO "nf10: device ready\n");
         return ret;
@@ -525,7 +457,7 @@ static void __devexit nf10_remove(struct pci_dev *pdev){
     //nicpic_delete_class(card);
     //msleep(1000);
 
-    for(i=0; i<2; i++)
+    for(i=0; i<card->class_num; i++)
     {
         pci_unmap_single(card->pdev, card->dsc_buffs[i]->pkt_physical_addr,
                          SK_BUFF_ALLOC_SIZE, PCI_DMA_TODEVICE);
@@ -533,11 +465,8 @@ static void __devexit nf10_remove(struct pci_dev *pdev){
         pci_free_consistent(card->pdev, card->dsc_buffs[i]->mask+65,
                             card->dsc_buffs[i]->ptr_ori,
                             card->dsc_buffs[i]->physical_addr_ori);
-        //kfree(card->dsc_buffs[i]);
-    }
-
-    for(i=0;i<1000;i++)
         kfree(card->dsc_buffs[i]);
+    }
 
     if(card){
 

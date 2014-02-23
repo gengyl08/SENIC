@@ -79,17 +79,15 @@ long nf10fops_ioctl (struct file *f, unsigned int cmd, unsigned long arg){
     int i;
 
     switch(cmd){
+    /*
     case NF10_IOCTL_CMD_ADD_DSC:
-        /*for(i=0; i<card->class_num; i++)
+        for(i=0; i<card->class_num; i++)
         {
             //printk(KERN_INFO "class: %d, head: %x\n", i, card->dsc_buffs[i]->head);
             nicpic_add_dsc(card, (uint64_t)i);
-        }*/
-        if(card->debug)
-           card->debug = 0;
-        else
-           card->debug = 1;
+        }
         break;
+    */
     case NF10_IOCTL_CMD_READ_STAT:
         if(copy_from_user(&addr, (uint64_t*)arg, 8)) printk(KERN_ERR "nf10: ioctl copy_from_user fail\n");
         if(addr >= 4096/8) return -EINVAL;
