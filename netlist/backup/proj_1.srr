@@ -1,0 +1,58 @@
+#Build: Synplify 9.6.2, Build 066R, Oct 28 2008
+#install: C:\Program Files (x86)\Synplicity\fpga_962
+#OS:  6.1
+#Hostname: YILONG-PC
+
+#Implementation: netlist
+
+#Mon Sep 02 17:14:57 2013
+
+$ Start of Compile
+#Mon Sep 02 17:14:57 2013
+
+Synplicity Verilog Compiler, version 1.0, Build 037R, built Oct 30 2008
+Copyright (C) 1994-2008, Synplicity Inc.  All Rights Reserved
+
+@I::"C:\Program Files (x86)\Synplicity\fpga_962\lib\xilinx\unisim.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\axi.v"
+@I:"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\axi.v":"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\dma_defs.vh"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\cfg.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\dma.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\iface.v"
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\iface.v":610:37:610:44|Specified digits overflow the number's size
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\iface.v":619:34:619:41|Specified digits overflow the number's size
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\lib.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\mem.v"
+@E: CG431 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\mem.v":250:25:250:26|Expecting radix character (one of b, o, h, or d) or unsized single bit literal (one of '1, '0, 'x, 'z) 
+@E: CS187 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\mem.v":544:0:544:8|Expecting endmodule
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_cm_q.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_rd_q.v"
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_rd_q.v":138:43:138:50|Specified digits overflow the number's size
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_rd_q.v":146:43:146:50|Specified digits overflow the number's size
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_rd_q.v":266:40:266:47|Specified digits overflow the number's size
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_rd_q.v":274:40:274:47|Specified digits overflow the number's size
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_rx.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_rx_cm.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_rx_rd.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_rx_wr.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_tx.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_tx_cm.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_tx_q.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_tx_rd.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_tx_wr.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_wr_q.v"
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_wr_q.v":150:46:150:53|Specified digits overflow the number's size
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_wr_q.v":158:46:158:53|Specified digits overflow the number's size
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_wr_q.v":274:40:274:47|Specified digits overflow the number's size
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\pcie_wr_q.v":282:40:282:47|Specified digits overflow the number's size
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\rx_ctrl.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\small_async_fifo.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\stats.v"
+@I::"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\tx_ctrl.v"
+@W: CG289 :"C:\Users\Yilong\Dropbox\Stanford\Google\nicpic\nicpic_dma_v1_10_a\hdl\SystemVerilog\tx_ctrl.v":1016:92:1016:96|Specified digits overflow the number's size
+2 syntax errors
+@END
+Process took 0h:00m:01s realtime, 0h:00m:01s cputime
+# Mon Sep 02 17:14:57 2013
+
+###########################################################]
