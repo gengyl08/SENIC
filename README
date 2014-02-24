@@ -1,0 +1,17 @@
+1, How to compile.
+    (a) Set up the NetFPGA-10G platform according to http://netfpga.org/
+    (b) Put directories dma_v1_10_a/, nf10_10g_interface_v1_10_a/ and nf10_nic_output_port_lookup_v1_00_a/ into NetFPGA-10G-live/lib/hw/std/pcores/
+    (c) Run make in NetFPGA-10G-live/projects/reference_nic to get the bitfile
+
+2, How to do simple test
+    (a) Load the bitfile.
+    (b) Reboot and load the driver in driver/ or driver_netperf. With driver/ the descriptor queues are hardcoded, which is suit for pressure test. With driver_netperf one can actually send packets via the TCP/IP stack.
+
+3, How to create/disable rate limiters.
+    (a) There are various nicpic API functions in nicpic.c. The prefered way is to call these functions in nf10fops.c as ioctl calls. As for now these functions are called in the driver initialization phase and exiting phase. The ioctl calls will be added shortly to enable better usability.
+
+4, How to classify packets into rate limiters.
+    (a) Upon transmission of a packet the nf10priv_xmit() function in nf10priv.c will be called. One can examin the packet and associate the packet to one rate limiter by assigning the class_index variable in this function.
+
+5, How to read clock from the received packets.
+    (a) The first 8 bytes in the received packets is a timestamp. The second 8 bytes in the received packets is its serial number.
